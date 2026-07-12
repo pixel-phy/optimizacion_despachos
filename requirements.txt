@@ -1,0 +1,45 @@
+
+---
+
+### **2. requirements.txt**
+
+```txt
+# Core Data Science
+pandas==2.0.3
+numpy==1.24.3
+scipy==1.10.1
+openpyxl==3.1.2
+
+# Visualization
+matplotlib==3.7.2
+seaborn==0.12.2
+plotly==5.15.0  # Para dashboards
+
+# Machine Learning
+scikit-learn==1.3.0
+xgboost==1.7.6
+
+# Optimization & Simulation
+pulp==2.7.0
+simpy==4.0.1
+
+# Deep Learning (Fase 4)
+tensorflow==2.13.0
+keras==2.13.1
+
+# Development
+jupyter==1.0.0
+notebook==7.0.6
+ipykernel==6.25.0
+
+# Dashboard (opcional)
+streamlit==1.25.0
+
+# Utilities
+python-dotenv==1.0.0
+tqdm==4.65.0
+
+# Testing
+pytest==7.4.0
+black==23.7.0
+flake8==6.1.0
