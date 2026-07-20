@@ -1,8 +1,23 @@
-
+# dashboard/app.py
 import streamlit as st
 from datetime import datetime
 import sys
 from pathlib import Path
+
+# Configuración de la página
+st.set_page_config(
+    page_title="Dashboard de Planificación de Despachos",
+    page_icon="📦",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# Agregar el directorio raíz al path
+sys.path.append(str(Path(__file__).parent.parent))
+
+# Importar módulos
+from dashboard.utils.loaders import load_models, load_available_dates
+from src.optimization import PlanificadorJornada, optimizar_asignacion
 
 # Configuración de la página - DEBE SER LA PRIMERA LLAMADA A STREAMLIT
 st.set_page_config(

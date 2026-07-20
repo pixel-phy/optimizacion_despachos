@@ -8,7 +8,7 @@ from pathlib import Path
 import sys
 
 # Agregar directorio raíz al path
-sys.path.append(str(Path(__file__).parent.parent))
+sys.path.append(str(Path(__file__).parent.parent.parent))
 
 from utils.loaders import load_models, predict_tiempo
 from utils.visualizations import (
@@ -18,6 +18,7 @@ from utils.visualizations import (
     mostrar_metricas_planificacion
 )
 from utils.planners import ejecutar_planificacion_simple
+from src.data_loader import CargadorDatos
 
 st.set_page_config(
     page_title="Planificar Jornada",
@@ -34,6 +35,16 @@ if 'resultados_planificacion' not in st.session_state:
 
 # Cargar modelos
 models = load_models()
+
+# ============================================================
+# VERIFICAR QUE EL CARGADOR ESTÉ DISPONIBLE
+# ============================================================
+if 'cargador' not in models or models['cargador'] is None:
+    try:
+        models['cargador'] = CargadorDatos()
+        st.success("✅ Cargador de datos inicializado")
+    except Exception as e:
+        st.warning(f"⚠️ No se pudo inicializar el cargador: {str(e)}")
 
 # Configuración en sidebar
 with st.sidebar:
@@ -131,23 +142,28 @@ with st.sidebar:
             hora_evento = st.time_input("Hora del evento:", value=time(17, 0), key="hora_evento")
             duracion_evento = st.number_input("Duración (minutos):", min_value=5, max_value=120, value=30, step=5, key="duracion_evento")
         with col2:
-            afecta = st.multiselect(
+            # Convertir "Operador X" a número para el simulador
+            opciones_afecta = [f"Operador {i+1}" for i in range(n_operadores)]
+            afecta_seleccionados = st.multiselect(
                 "Afecta a operadores:",
-                options=[f"Operador {i+1}" for i in range(n_operadores)],
-                default=[f"Operador {i+1}" for i in range(min(2, n_operadores))],
+                options=opciones_afecta,
+                default=opciones_afecta[:min(2, n_operadores)],
                 key="afecta_evento"
             )
-            if afecta:
+            if afecta_seleccionados:
+                # Convertir nombres a números para el simulador
+                afecta_numeros = [int(op.split()[1]) for op in afecta_seleccionados]
                 eventos.append({
                     'hora': hora_evento.strftime('%H:%M'),
                     'duracion': duracion_evento,
-                    'afecta': afecta
+                    'afecta': afecta_numeros,
+                    'descripcion': f"Evento a las {hora_evento.strftime('%H:%M')}"
                 })
                 st.success(f"✅ Evento agregado: {hora_evento.strftime('%H:%M')} - {duracion_evento}min")
     
     st.subheader("⚠️ Interrupciones Aleatorias")
     prob_interrupcion = st.slider(
-        "Probabilidad de interrupción:",
+        "Probabilidad de interrupción (por hora):",
         min_value=0.0,
         max_value=0.5,
         value=0.1,
@@ -194,7 +210,7 @@ if ejecutar:
                     'duracion_interrupcion': duracion_interrupcion
                 }
                 
-                # Ejecutar planificación
+                # Ejecutar planificación usando el nuevo planner
                 resultados = ejecutar_planificacion_simple(config, models)
                 
                 if resultados:
@@ -452,7 +468,6 @@ if ejecutar:
                                       - Diferencia: {nueva_diferencia:.1f} min
                                     """)
                                     
-                                    # Mostrar sugerencia de rutas a mover
                                     st.info("💡 **Sugerencia:** Re-ejecuta la planificación con un rebalanceo manual o ajusta el número de operadores.")
                                 else:
                                     st.success(f"""

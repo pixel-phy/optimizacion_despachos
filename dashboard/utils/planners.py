@@ -3,141 +3,158 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 from datetime import datetime
-import random
 import sys
 from pathlib import Path
 
 # Agregar directorio raíz al path para importaciones
-sys.path.append(str(Path(__file__).parent.parent))
+sys.path.append(str(Path(__file__).parent.parent.parent))
+
+from src.optimization import PlanificadorJornada
+from src.data_loader import CargadorDatos
+
 
 def ejecutar_planificacion_simple(config, models):
     """
-    Ejecuta una planificación simple usando los modelos cargados.
+    Ejecuta una planificación usando PlanificadorJornada de src.
+    
+    Args:
+        config: Diccionario con configuración de la jornada
+        models: Diccionario con modelos cargados (se usa para el cargador)
+    
+    Returns:
+        dict: Resultados de la planificación
     """
     try:
         rutas_ids = config['rutas_ids']
         n_operadores = config['n_operadores']
         n_simulaciones = config['n_simulaciones']
-        hora_inicio = config.get('hora_inicio')
+        meta_horas = config['meta_horas']
+        hora_inicio = config.get('hora_inicio', datetime.now().time())
+        eventos = config.get('eventos', [])
+        prob_interrupcion = config.get('prob_interrupcion', 0.1)
+        duracion_interrupcion = config.get('duracion_interrupcion', 15)
         
         if not rutas_ids:
             return None
         
-        from utils.loaders import predict_tiempo
-        
-        # Obtener histórico para predicciones
-        historico = models.get('historico', pd.DataFrame())
-        
-        if hora_inicio:
-            fecha_actual = datetime.now()
-            dia_semana = fecha_actual.weekday()
+        # ============================================================
+        # 1. OBTENER CARGADOR DESDE models O CREAR UNO NUEVO
+        # ============================================================
+        if models and 'cargador' in models and models['cargador'] is not None:
+            cargador = models['cargador']
         else:
-            dia_semana = 0
+            # Crear nuevo cargador
+            cargador = CargadorDatos()
         
         # ============================================================
-        # 1. PREDECIR TIEMPOS USANDO EL HISTÓRICO
+        # 2. CONFIGURAR EVENTOS EN EL FORMATO ESPERADO POR PlanificadorJornada
         # ============================================================
-        tiempos_estimados = []
-        for ruta_id in rutas_ids:
-            # Buscar datos reales de esta ruta en el histórico
-            if not historico.empty:
-                registros_ruta = historico[historico['id_ruta'] == ruta_id]
-                if not registros_ruta.empty:
-                    # Usar datos reales de la ruta
-                    ruta_data = {
-                        'id_ruta': ruta_id,
-                        'cant_productos': registros_ruta['cant_productos'].mean(),
-                        'valor_ruta': registros_ruta['valor_ruta'].mean()
-                    }
-                else:
-                    # Si no hay histórico, usar valores estimados
-                    ruta_data = {
-                        'id_ruta': ruta_id,
-                        'cant_productos': np.random.randint(10, 40),
-                        'valor_ruta': np.random.uniform(300, 1200)
-                    }
-            else:
-                ruta_data = {
-                    'id_ruta': ruta_id,
-                    'cant_productos': np.random.randint(10, 40),
-                    'valor_ruta': np.random.uniform(300, 1200)
-                }
-            
-            # Predecir tiempo usando el histórico
-            tiempo = predict_tiempo(
-                models['model'], 
-                models['scaler'], 
-                ruta_data,
-                dia_semana=dia_semana,
-                historico=historico
-            )
-            tiempos_estimados.append(tiempo)
+        eventos_dia = {}
+        
+        # Eventos programados
+        for i, evento in enumerate(eventos):
+            eventos_dia[f'evento_{i+1}'] = {
+                'hora': evento['hora'],
+                'duracion': evento['duracion'],
+                'afecta': 'todos' if len(evento.get('afecta', [])) == n_operadores else 'aleatorio',
+                'tipo': 'programado',
+                'descripcion': f"Evento {i+1}"
+            }
+        
+        # Eventos aleatorios (interrupciones)
+        if prob_interrupcion > 0:
+            eventos_dia['interrupciones'] = {
+                'probabilidad': prob_interrupcion,
+                'duracion_media': duracion_interrupcion,
+                'duracion_std': duracion_interrupcion * 0.4,
+                'afecta': 'aleatorio',
+                'tipo': 'aleatorio',
+                'descripcion': 'Interrupciones aleatorias'
+            }
         
         # ============================================================
-        # 2. ASIGNAR RUTAS A OPERADORES
+        # 3. CREAR Y CONFIGURAR PlanificadorJornada
         # ============================================================
-        # Ordenar por tiempo descendente para mejor balanceo
-        indices_ordenados = np.argsort(tiempos_estimados)[::-1]
+        planificador = PlanificadorJornada(cargador_instancia=cargador)
         
-        # Asignación balanceada (operador con menos carga primero)
-        cargas = [0] * n_operadores
-        asignacion = []
+        # Convertir hora_inicio a formato 24h (entero)
+        if hasattr(hora_inicio, 'hour'):
+            hora_inicio_int = hora_inicio.hour
+        else:
+            hora_inicio_int = 15
         
-        for idx in indices_ordenados:
-            ruta_id = rutas_ids[idx]
-            tiempo = tiempos_estimados[idx]
-            
-            # Asignar al operador con menos carga
-            op_min = np.argmin(cargas)
-            operador = f"Operador {op_min + 1}"
-            
-            asignacion.append({
-                'id_ruta': ruta_id,
-                'operador': operador,
-                'tiempo_estimado': tiempo
-            })
-            cargas[op_min] += tiempo
-        
-        df_asignacion = pd.DataFrame(asignacion)
+        planificador.configurar(
+            rutas=rutas_ids,
+            n_operadores=n_operadores,
+            eventos_dia=eventos_dia,
+            hora_inicio=hora_inicio_int,
+            meta_horas=meta_horas,
+            n_simulaciones=n_simulaciones,
+            seed=42
+        )
         
         # ============================================================
-        # 3. CALCULAR MAKESPAN Y SIMULACIÓN
+        # 4. EJECUTAR PLANIFICACIÓN
         # ============================================================
-        carga_operadores = df_asignacion.groupby('operador')['tiempo_estimado'].sum()
-        makespan_planificado = carga_operadores.max()
+        planificador.ejecutar()
+        diagnostico = planificador.diagnostico_completo
         
-        # Simulación Monte Carlo
-        tiempos_simulados = []
-        for _ in range(n_simulaciones):
-            variabilidad = np.random.normal(1, 0.1, len(tiempos_estimados))
-            tiempos_sim = np.array(tiempos_estimados) * np.maximum(0.5, variabilidad)
-            
-            prob_inter = config.get('prob_interrupcion', 0.1)
-            duracion_inter = config.get('duracion_interrupcion', 15)
-            
-            for i in range(len(tiempos_sim)):
-                if np.random.random() < prob_inter:
-                    tiempos_sim[i] += np.random.exponential(duracion_inter)
-            
-            cargas_sim = [0] * n_operadores
-            for i, (idx, tiempo) in enumerate(zip(indices_ordenados, tiempos_sim)):
-                op_min = np.argmin(cargas_sim)
-                cargas_sim[op_min] += tiempo
-            
-            tiempos_simulados.append(max(cargas_sim))
+        if diagnostico is None:
+            return None
         
-        makespan_simulado = np.mean(tiempos_simulados)
-        meta_minutos = config['meta_horas'] * 60
-        prob_extra = sum(1 for t in tiempos_simulados if t > meta_minutos) / len(tiempos_simulados)
+        # ============================================================
+        # 5. EXTRAER RESULTADOS
+        # ============================================================
+        opt = diagnostico['optimizacion']
+        sim = diagnostico['simulacion']
+        cfg = diagnostico['config']
         
+        df_asignacion = opt['df_asignacion']
+        
+        # Obtener tiempos individuales simulados (desde la simulación)
+        tiempos_simulados = sim['makespans']
+        
+        # Calcular estadísticas adicionales
+        makespan_planificado = opt['makespan']
+        makespan_simulado = sim['mean_makespan']
+        prob_extra = sim['prob_horas_extra'] / 100  # Convertir a fracción
+        
+        # Carga por operador
+        carga_operadores = {}
+        for op in sorted(df_asignacion['operador'].unique()):
+            carga = df_asignacion[df_asignacion['operador'] == op]['tiempo_estimado'].sum()
+            carga_operadores[f'Operador {op}'] = carga
+        
+        # Balanceo
+        cargas_list = list(carga_operadores.values())
+        if cargas_list:
+            balanceo = max(cargas_list) - min(cargas_list)
+            balanceo_pct = (balanceo / max(cargas_list) * 100) if max(cargas_list) > 0 else 0
+        else:
+            balanceo = 0
+            balanceo_pct = 0
+        
+        # ============================================================
+        # 6. CREAR DICCIONARIO DE RESULTADOS
+        # ============================================================
         resultados = {
             'asignacion': df_asignacion,
-            'tiempos_individuales': tiempos_estimados,
+            'tiempos_individuales': [row['tiempo_estimado'] for _, row in df_asignacion.iterrows()],
             'tiempos_simulados': tiempos_simulados,
             'makespan_planificado': makespan_planificado,
             'makespan_simulado': makespan_simulado,
+            'makespan_std': sim['std_makespan'],
+            'makespan_p5': np.percentile(tiempos_simulados, 5),
+            'makespan_p95': sim['p95_makespan'],
             'prob_extra': prob_extra,
-            'carga_operadores': carga_operadores.to_dict()
+            'carga_operadores': carga_operadores,
+            'balanceo': balanceo,
+            'balanceo_pct': balanceo_pct,
+            'n_rutas': len(rutas_ids),
+            'n_operadores': n_operadores,
+            'meta_horas': meta_horas,
+            'diagnostico': diagnostico,
+            'planificador': planificador
         }
         
         return resultados
@@ -146,52 +163,6 @@ def ejecutar_planificacion_simple(config, models):
         st.error(f"❌ Error en planificación: {str(e)}")
         import traceback
         st.code(traceback.format_exc())
-        return None
-
-def optimizar_asignacion(rutas_tiempos, n_operadores):
-    """
-    Función de optimización usando PuLP (versión simplificada)
-    
-    Parámetros:
-    -----------
-    rutas_tiempos : list
-        Lista de tuplas (id_ruta, tiempo_estimado)
-    n_operadores : int
-        Número de operadores disponibles
-    
-    Retorna:
-    --------
-    pd.DataFrame : Asignación optimizada
-    """
-    try:
-        # Verificar que tenemos datos
-        if not rutas_tiempos:
-            return pd.DataFrame()
-        
-        # Ordenar por tiempo descendente (más largas primero)
-        rutas_ordenadas = sorted(rutas_tiempos, key=lambda x: x[1], reverse=True)
-        
-        # Inicializar cargas de operadores
-        cargas = [0] * n_operadores
-        asignacion = []
-        
-        # Asignación greedy: cada ruta al operador con menos carga actual
-        for ruta_id, tiempo in rutas_ordenadas:
-            # Encontrar operador con menor carga
-            op_min = min(range(n_operadores), key=lambda i: cargas[i])
-            
-            asignacion.append({
-                'id_ruta': ruta_id,
-                'operador': f"Operador {op_min + 1}",
-                'tiempo_estimado': tiempo
-            })
-            
-            cargas[op_min] += tiempo
-        
-        return pd.DataFrame(asignacion)
-    
-    except Exception as e:
-        st.warning(f"⚠️ Error en optimización: {str(e)}")
         return None
 
 

@@ -7,7 +7,7 @@ import pandas as pd
 import numpy as np
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.cluster import KMeans
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import RobustScaler
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 import xgboost as xgb
 import joblib
@@ -26,18 +26,13 @@ class ModeloPrediccionTiempo:
     def __init__(self):
         self.rf_model = None
         self.xgb_model = None
-        self.scaler = StandardScaler()
+        self.scaler = RobustScaler()  # Cambiado a RobustScaler
         self.feature_cols = None
         self.mejor_modelo = None
         
     def entrenar(self, X_train, y_train, feature_cols):
         """
         Entrena modelos Random Forest y XGBoost.
-        
-        Parámetros:
-        - X_train: Features de entrenamiento
-        - y_train: Target (tiempo_preparacion_minutos)
-        - feature_cols: Lista de nombres de columnas features
         """
         self.feature_cols = feature_cols
         
@@ -52,7 +47,7 @@ class ModeloPrediccionTiempo:
         )
         self.rf_model.fit(X_train, y_train)
         
-        # XGBoost - Alta precisión para series temporales
+        # XGBoost
         self.xgb_model = xgb.XGBRegressor(
             n_estimators=100,
             max_depth=6,
@@ -64,7 +59,6 @@ class ModeloPrediccionTiempo:
         )
         self.xgb_model.fit(X_train, y_train)
         
-        # Seleccionar mejor modelo basado en validación
         self._seleccionar_mejor_modelo(X_train, y_train)
         
     def _seleccionar_mejor_modelo(self, X_val, y_val):
@@ -122,17 +116,12 @@ class ClusteringRutas:
     
     def __init__(self):
         self.kmeans = None
-        self.scaler = StandardScaler()
+        self.scaler = RobustScaler()
         self.k_optimo = None
         self.cluster_profile = None
         
     def encontrar_k_optimo(self, X, k_range=range(2, 11)):
-        """
-        Encuentra K óptimo usando método de silueta.
-        
-        Decisión de negocio: K define granularidad de segmentación operativa.
-        3-4 clusters suele ser óptimo para bodegas medianas.
-        """
+        """Encuentra K óptimo usando método de silueta."""
         from sklearn.metrics import silhouette_score
         
         silhouettes = []
@@ -145,13 +134,7 @@ class ClusteringRutas:
         return self.k_optimo
     
     def entrenar(self, X, k=None):
-        """
-        Entrena K-Means y perfila clusters operativamente.
-        
-        Parámetros:
-        - X: Features escaladas (cant_productos, valor_ruta)
-        - k: Número de clusters (si None, usa k_optimo calculado)
-        """
+        """Entrena K-Means y perfila clusters operativamente."""
         if k is None:
             k = self.k_optimo if self.k_optimo else 3
             
@@ -161,14 +144,7 @@ class ClusteringRutas:
         return self.kmeans.labels_
     
     def perfilar_clusters(self, df_cluster, labels):
-        """
-        Genera perfil operativo de cada cluster.
-        
-        Retorna DataFrame con:
-        - Productividad promedio
-        - Tiempo promedio
-        - Dificultad operativa
-        """
+        """Genera perfil operativo de cada cluster."""
         df_cluster['cluster'] = labels
         
         self.cluster_profile = df_cluster.groupby('cluster').agg(
@@ -179,7 +155,6 @@ class ClusteringRutas:
             velocidad_promedio=('velocidad_promedio', 'mean')
         ).round(1)
         
-        # Clasificación operativa
         self.cluster_profile['dificultad'] = pd.cut(
             self.cluster_profile['velocidad_promedio'],
             bins=[0, 842, 2279, float('inf')],
