@@ -155,8 +155,11 @@ def crear_gauge_riesgo(prob_extra):
     return fig
 
 def crear_grafico_validacion(df_real, tiempos_reales, tiempos_simulados):
-    """Crea gráfico comparativo para validación"""
+    """
+    Crea gráfico comparativo para validación.
     
+    CORREGIDO: Las rutas se muestran como etiquetas categóricas.
+    """
     # Asegurar que ambas listas tengan la misma longitud
     n = min(len(tiempos_reales), len(tiempos_simulados))
     tiempos_reales = tiempos_reales[:n]
@@ -166,16 +169,29 @@ def crear_grafico_validacion(df_real, tiempos_reales, tiempos_simulados):
                         subplot_titles=('Comparativa por Ruta', 'Distribución de Errores'),
                         vertical_spacing=0.15)
     
-    # Gráfico superior: barras comparativas
-    rutas = [f"Ruta {i+1}" for i in range(n)]
+    # CORRECCIÓN: Usar números de ruta como strings (categorías)
+    rutas = [str(i+1) for i in range(n)]
     
+    # Gráfico superior: barras comparativas
     fig.add_trace(
-        go.Bar(name='Real', x=rutas, y=tiempos_reales, marker_color='lightblue'),
+        go.Bar(
+            name='Real',
+            x=rutas,
+            y=tiempos_reales,
+            marker_color='lightblue',
+            hovertemplate='<b>Ruta %{x}</b><br>Real: %{y:.1f} min<extra></extra>'
+        ),
         row=1, col=1
     )
     
     fig.add_trace(
-        go.Bar(name='Simulado', x=rutas, y=tiempos_simulados, marker_color='lightcoral'),
+        go.Bar(
+            name='Simulado',
+            x=rutas,
+            y=tiempos_simulados,
+            marker_color='lightcoral',
+            hovertemplate='<b>Ruta %{x}</b><br>Simulado: %{y:.1f} min<extra></extra>'
+        ),
         row=1, col=1
     )
     
@@ -183,86 +199,63 @@ def crear_grafico_validacion(df_real, tiempos_reales, tiempos_simulados):
     errores = [abs(r - s) for r, s in zip(tiempos_reales, tiempos_simulados)]
     
     fig.add_trace(
-        go.Histogram(x=errores, nbinsx=20, marker_color='purple', opacity=0.7),
+        go.Histogram(
+            x=errores,
+            nbinsx=20,
+            marker_color='purple',
+            opacity=0.7
+        ),
         row=2, col=1
     )
     
     # Línea de media en el histograma
     media_error = np.mean(errores)
-    fig.add_vline(x=media_error, line_dash="dash", line_color="red",
-                  annotation_text=f"MAE: {media_error:.2f} min",
-                  row=2, col=1)
+    fig.add_vline(
+        x=media_error,
+        line_dash="dash",
+        line_color="red",
+        annotation_text=f"MAE: {media_error:.2f} min",
+        row=2, col=1
+    )
     
-    # Actualizar layout
+    # ============================================================
+    # CORRECCIÓN: Eje X como categorías
+    # ============================================================
+    fig.update_xaxes(
+        title_text="Ruta",
+        type='category',  # ← Categorías, no numérico
+        row=1, col=1
+    )
+    fig.update_xaxes(
+        title_text="Error (minutos)",
+        row=2, col=1
+    )
+    
+    fig.update_yaxes(title_text="Tiempo (minutos)", row=1, col=1)
+    fig.update_yaxes(title_text="Frecuencia", row=2, col=1)
+    
     fig.update_layout(
         height=600,
         showlegend=True,
-        title_text="Comparativa Real vs Simulado"
+        title_text="Comparativa Real vs Simulado",
+        barmode='group'
     )
-    
-    fig.update_xaxes(title_text="Ruta", row=1, col=1)
-    fig.update_yaxes(title_text="Tiempo (minutos)", row=1, col=1)
-    fig.update_xaxes(title_text="Error (minutos)", row=2, col=1)
-    fig.update_yaxes(title_text="Frecuencia", row=2, col=1)
     
     return fig
 
-def mostrar_metricas_planificacion(resultados, meta_horas, col1, col2, col3, col4):
-    """Muestra métricas principales en cards"""
-    
-    makespan_planificado = resultados.get('makespan_planificado', 0)
-    makespan_simulado = resultados.get('makespan_simulado', 0)
-    prob_extra = resultados.get('prob_extra', 0.0)
-    
-    # Determinar color según probabilidad
-    if prob_extra < 0.1:
-        color = "🟢"
-        veredicto = "VIABLE"
-    elif prob_extra < 0.3:
-        color = "🟡"
-        veredicto = "REQUIERE ATENCIÓN"
-    else:
-        color = "🔴"
-        veredicto = "ALTO RIESGO"
-    
-    with col1:
-        st.metric(
-            "Makespan Planificado",
-            f"{makespan_planificado:.1f} min",
-            f"{makespan_planificado/60:.1f} horas"
-        )
-    
-    with col2:
-        st.metric(
-            "Makespan Simulado",
-            f"{makespan_simulado:.1f} min",
-            f"{makespan_simulado/60:.1f} horas"
-        )
-    
-    with col3:
-        st.metric(
-            "Prob. Horas Extra",
-            f"{prob_extra*100:.1f}%",
-            f"{color}"
-        )
-    
-    with col4:
-        st.metric(
-            "Veredicto",
-            veredicto,
-            f"Meta: {meta_horas} horas"
-        )
-
 def crear_grafico_validacion_personal(df_tus_rutas, tiempos_reales, tiempos_simulados):
     """
-    Crea gráfico comparativo específico para tus rutas personales
+    Crea gráfico comparativo específico para tus rutas personales.
+    
+    CORREGIDO: Los IDs de ruta se muestran como etiquetas categóricas,
+    no como una escala numérica.
     """
     n = min(len(tiempos_reales), len(tiempos_simulados))
     
     if n == 0:
         return None
     
-    # Preparar datos
+    # Preparar datos - IDs de ruta como strings (categorías)
     rutas = df_tus_rutas['id_ruta'].astype(str).tolist()[:n]
     tiempos_reales = tiempos_reales[:n]
     tiempos_simulados = tiempos_simulados[:n]
@@ -283,6 +276,7 @@ def crear_grafico_validacion_personal(df_tus_rutas, tiempos_reales, tiempos_simu
     )
     
     # Gráfico 1: Barras comparativas
+    # CORRECCIÓN: Usar rutas como strings (categorías) en lugar de valores numéricos
     fig.add_trace(
         go.Bar(
             name='Tiempo Real',
@@ -290,7 +284,8 @@ def crear_grafico_validacion_personal(df_tus_rutas, tiempos_reales, tiempos_simu
             y=tiempos_reales,
             marker_color='lightblue',
             text=[f'{t:.1f}' for t in tiempos_reales],
-            textposition='outside'
+            textposition='outside',
+            hovertemplate='<b>Ruta %{x}</b><br>Tiempo Real: %{y:.1f} min<extra></extra>'
         ),
         row=1, col=1
     )
@@ -302,7 +297,8 @@ def crear_grafico_validacion_personal(df_tus_rutas, tiempos_reales, tiempos_simu
             y=tiempos_simulados,
             marker_color='lightcoral',
             text=[f'{t:.1f}' for t in tiempos_simulados],
-            textposition='outside'
+            textposition='outside',
+            hovertemplate='<b>Ruta %{x}</b><br>Tiempo Simulado: %{y:.1f} min<extra></extra>'
         ),
         row=1, col=1
     )
@@ -316,7 +312,8 @@ def crear_grafico_validacion_personal(df_tus_rutas, tiempos_reales, tiempos_simu
             y=errores,
             marker_color=colors_abs,
             text=[f'{e:.1f} min' for e in errores],
-            textposition='outside'
+            textposition='outside',
+            hovertemplate='<b>Ruta %{x}</b><br>Error: %{y:.1f} min<extra></extra>'
         ),
         row=2, col=1
     )
@@ -340,7 +337,8 @@ def crear_grafico_validacion_personal(df_tus_rutas, tiempos_reales, tiempos_simu
             y=error_pct,
             marker_color=colors_pct,
             text=[f'{p:.1f}%' for p in error_pct],
-            textposition='outside'
+            textposition='outside',
+            hovertemplate='<b>Ruta %{x}</b><br>Error: %{y:.1f}%<extra></extra>'
         ),
         row=3, col=1
     )
@@ -355,18 +353,41 @@ def crear_grafico_validacion_personal(df_tus_rutas, tiempos_reales, tiempos_simu
         row=3, col=1
     )
     
-    # Actualizar layout
-    fig.update_layout(
-        height=800,
-        showlegend=True,
-        title_text=f"Validación de tus rutas personales ({len(rutas)} rutas)"
+    # ============================================================
+    # CORRECCIÓN CLAVE: Configurar ejes para mostrar categorías
+    # ============================================================
+    # Eje X como categorías (strings), no como valores numéricos
+    fig.update_xaxes(
+        title_text="ID Ruta",
+        type='category',  # ← Esto es lo importante: categorías, no numérico
+        tickangle=-45,    # Rotar etiquetas para mejor legibilidad
+        row=1, col=1
+    )
+    fig.update_xaxes(
+        title_text="ID Ruta",
+        type='category',
+        tickangle=-45,
+        row=2, col=1
+    )
+    fig.update_xaxes(
+        title_text="ID Ruta",
+        type='category',
+        tickangle=-45,
+        row=3, col=1
     )
     
-    fig.update_xaxes(title_text="ID Ruta", row=1, col=1)
+    # Ejes Y con títulos claros
     fig.update_yaxes(title_text="Tiempo (minutos)", row=1, col=1)
-    fig.update_xaxes(title_text="ID Ruta", row=2, col=1)
     fig.update_yaxes(title_text="Error (minutos)", row=2, col=1)
-    fig.update_xaxes(title_text="ID Ruta", row=3, col=1)
     fig.update_yaxes(title_text="Error (%)", row=3, col=1)
+    
+    # Configurar layout general
+    fig.update_layout(
+        height=900,  # Más alto para mejor visualización
+        showlegend=True,
+        title_text=f"Validación de tus rutas personales ({len(rutas)} rutas)",
+        barmode='group',  # Barras agrupadas para mejor comparación
+        margin=dict(l=50, r=50, t=80, b=100)  # Más espacio para etiquetas
+    )
     
     return fig
