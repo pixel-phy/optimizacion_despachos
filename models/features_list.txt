@@ -1,0 +1,9 @@
+cant_productos
+valor_ruta
+dia_semana_Friday
+dia_semana_Monday
+dia_semana_Saturday
+dia_semana_Sunday
+dia_semana_Thursday
+dia_semana_Tuesday
+dia_semana_Wednesday
