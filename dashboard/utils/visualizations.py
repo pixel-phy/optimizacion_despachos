@@ -1,3 +1,4 @@
+# dashboard/utils/visualizations.py
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -223,7 +224,7 @@ def crear_grafico_validacion(df_real, tiempos_reales, tiempos_simulados):
     # ============================================================
     fig.update_xaxes(
         title_text="Ruta",
-        type='category',  # ← Categorías, no numérico
+        type='category',
         row=1, col=1
     )
     fig.update_xaxes(
@@ -242,6 +243,60 @@ def crear_grafico_validacion(df_real, tiempos_reales, tiempos_simulados):
     )
     
     return fig
+
+# ============================================================
+# FUNCIÓN mostrar_metricas_planificacion (AGREGADA)
+# ============================================================
+
+def mostrar_metricas_planificacion(resultados, meta_horas, col1, col2, col3, col4):
+    """Muestra métricas principales en cards"""
+    
+    makespan_planificado = resultados.get('makespan_planificado', 0)
+    makespan_simulado = resultados.get('makespan_simulado', 0)
+    prob_extra = resultados.get('prob_extra', 0.0)
+    
+    # Determinar color según probabilidad
+    if prob_extra < 0.1:
+        color = "🟢"
+        veredicto = "VIABLE"
+    elif prob_extra < 0.3:
+        color = "🟡"
+        veredicto = "REQUIERE ATENCIÓN"
+    else:
+        color = "🔴"
+        veredicto = "ALTO RIESGO"
+    
+    with col1:
+        st.metric(
+            "Makespan Planificado",
+            f"{makespan_planificado:.1f} min",
+            f"{makespan_planificado/60:.1f} horas"
+        )
+    
+    with col2:
+        st.metric(
+            "Makespan Simulado",
+            f"{makespan_simulado:.1f} min",
+            f"{makespan_simulado/60:.1f} horas"
+        )
+    
+    with col3:
+        st.metric(
+            "Prob. Horas Extra",
+            f"{prob_extra*100:.1f}%",
+            f"{color}"
+        )
+    
+    with col4:
+        st.metric(
+            "Veredicto",
+            veredicto,
+            f"Meta: {meta_horas} horas"
+        )
+
+# ============================================================
+# FUNCIÓN crear_grafico_validacion_personal (CORREGIDA)
+# ============================================================
 
 def crear_grafico_validacion_personal(df_tus_rutas, tiempos_reales, tiempos_simulados):
     """
@@ -276,7 +331,6 @@ def crear_grafico_validacion_personal(df_tus_rutas, tiempos_reales, tiempos_simu
     )
     
     # Gráfico 1: Barras comparativas
-    # CORRECCIÓN: Usar rutas como strings (categorías) en lugar de valores numéricos
     fig.add_trace(
         go.Bar(
             name='Tiempo Real',
@@ -353,14 +407,11 @@ def crear_grafico_validacion_personal(df_tus_rutas, tiempos_reales, tiempos_simu
         row=3, col=1
     )
     
-    # ============================================================
-    # CORRECCIÓN CLAVE: Configurar ejes para mostrar categorías
-    # ============================================================
-    # Eje X como categorías (strings), no como valores numéricos
+    # CORRECCIÓN: Eje X como categorías
     fig.update_xaxes(
         title_text="ID Ruta",
-        type='category',  # ← Esto es lo importante: categorías, no numérico
-        tickangle=-45,    # Rotar etiquetas para mejor legibilidad
+        type='category',
+        tickangle=-45,
         row=1, col=1
     )
     fig.update_xaxes(
@@ -376,18 +427,65 @@ def crear_grafico_validacion_personal(df_tus_rutas, tiempos_reales, tiempos_simu
         row=3, col=1
     )
     
-    # Ejes Y con títulos claros
     fig.update_yaxes(title_text="Tiempo (minutos)", row=1, col=1)
     fig.update_yaxes(title_text="Error (minutos)", row=2, col=1)
     fig.update_yaxes(title_text="Error (%)", row=3, col=1)
     
-    # Configurar layout general
     fig.update_layout(
-        height=900,  # Más alto para mejor visualización
+        height=900,
         showlegend=True,
         title_text=f"Validación de tus rutas personales ({len(rutas)} rutas)",
-        barmode='group',  # Barras agrupadas para mejor comparación
-        margin=dict(l=50, r=50, t=80, b=100)  # Más espacio para etiquetas
+        barmode='group',
+        margin=dict(l=50, r=50, t=80, b=100)
+    )
+    
+    return fig
+
+# ============================================================
+# FUNCIÓN crear_grafico_validacion_operadores (NUEVA - Opcional)
+# ============================================================
+
+def crear_grafico_validacion_operadores(df_tus_rutas, tiempos_reales, tiempos_simulados):
+    """
+    Versión alternativa que muestra IDs de ruta reales en lugar de índices.
+    """
+    n = min(len(tiempos_reales), len(tiempos_simulados))
+    
+    if n == 0:
+        return None
+    
+    # Usar IDs de ruta reales como etiquetas
+    rutas = df_tus_rutas['id_ruta'].astype(str).tolist()[:n]
+    tiempos_reales = tiempos_reales[:n]
+    tiempos_simulados = tiempos_simulados[:n]
+    
+    fig = go.Figure()
+    
+    fig.add_trace(go.Scatter(
+        x=rutas,
+        y=tiempos_reales,
+        mode='markers+lines',
+        name='Tiempo Real',
+        marker=dict(size=10, color='blue'),
+        line=dict(color='blue', dash='solid')
+    ))
+    
+    fig.add_trace(go.Scatter(
+        x=rutas,
+        y=tiempos_simulados,
+        mode='markers+lines',
+        name='Tiempo Simulado',
+        marker=dict(size=10, color='red'),
+        line=dict(color='red', dash='dash')
+    ))
+    
+    fig.update_layout(
+        title='Comparativa de Tiempos por Ruta (Tus Rutas)',
+        xaxis_title='ID Ruta',
+        yaxis_title='Tiempo (minutos)',
+        xaxis=dict(type='category'),
+        height=500,
+        showlegend=True
     )
     
     return fig

@@ -79,17 +79,39 @@ def load_models():
         )
         
         # ============================================================
-        # 2. CARGAR SCALER (opcional)
+        # 2. CARGAR SCALER - PRIORIZAR .joblib (CORREGIDO)
         # ============================================================
         scaler = None
-        scaler_path = models_dir / 'scaler.pkl'
-        if scaler_path.exists():
+        
+        # Primero intentar con .joblib (más compatible)
+        scaler_path_joblib = models_dir / 'scaler.joblib'
+        if scaler_path_joblib.exists():
             try:
-                with open(scaler_path, 'rb') as f:
-                    scaler = pickle.load(f)
-                st.success("✅ Scaler cargado")
+                scaler = joblib.load(scaler_path_joblib)
+                st.success("✅ Scaler cargado (joblib)")
             except Exception as e:
-                st.warning(f"⚠️ Error cargando scaler: {str(e)}")
+                st.warning(f"⚠️ Error cargando scaler.joblib: {str(e)}")
+        
+        # Si no se pudo cargar .joblib, intentar con .pkl
+        if scaler is None:
+            scaler_path_pkl = models_dir / 'scaler.pkl'
+            if scaler_path_pkl.exists():
+                try:
+                    scaler = joblib.load(scaler_path_pkl)  # joblib también lee .pkl
+                    st.success("✅ Scaler cargado (pkl con joblib)")
+                except Exception as e:
+                    st.warning(f"⚠️ Error cargando scaler.pkl con joblib: {str(e)}")
+                    # Último intento con pickle
+                    try:
+                        with open(scaler_path_pkl, 'rb') as f:
+                            scaler = pickle.load(f)
+                        st.success("✅ Scaler cargado (pickle)")
+                    except Exception as e2:
+                        st.warning(f"⚠️ Error cargando scaler con pickle: {str(e2)}")
+        
+        # Si aún no se cargó, notificar que no es crítico
+        if scaler is None:
+            st.info("ℹ️ Scaler no disponible. Random Forest no necesita escalado de features.")
         
         # ============================================================
         # 3. CARGAR METADATOS
