@@ -34,6 +34,7 @@ El proyecto integra técnicas de **Machine Learning**, **Optimización Matemáti
 
 ## Estructura del proyecto
 
+```
 optimizacion_despachos/
 │
 ├── 📁 src/                          # Código fuente reutilizable
@@ -85,6 +86,8 @@ optimizacion_despachos/
 ├── run_dashboard.py                 # Script para ejecutar el dashboard
 └── README.md                        # Este archivo
 
+
+```
 ---
 
 ## Herramientas utilizadas
