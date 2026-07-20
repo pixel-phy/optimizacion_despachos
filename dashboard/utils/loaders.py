@@ -1,3 +1,4 @@
+# utils/loaders.py
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -59,52 +60,68 @@ def load_models():
         
         st.info(f"📁 Modelos encontrados en: {models_dir}")
         
-        # Intentar cargar el modelo
+        # ============================================================
+        # 1. CARGAR MODELO - PRIORIZAR .joblib SOBRE .pkl
+        # ============================================================
         model = None
-        model_path = models_dir / 'random_forest_model.pkl'
         
-        if model_path.exists():
+        # Intentar con .joblib primero (recomendado)
+        model_path_joblib = models_dir / 'random_forest_model.joblib'
+        if model_path_joblib.exists():
             try:
-                with open(model_path, 'rb') as f:
-                    model = pickle.load(f)
-                st.success("✅ Modelo Random Forest cargado")
+                model = joblib.load(model_path_joblib)
+                st.success("✅ Modelo Random Forest cargado (joblib)")
             except Exception as e:
-                st.warning(f"⚠️ Error cargando model.pkl: {str(e)}")
-                # Intentar con joblib
-                model_path_joblib = models_dir / 'random_forest_model.joblib'
-                if model_path_joblib.exists():
-                    try:
-                        model = joblib.load(model_path_joblib)
-                        st.success("✅ Modelo Random Forest cargado (joblib)")
-                    except Exception as e2:
-                        st.warning(f"⚠️ Error cargando model.joblib: {str(e2)}")
+                st.warning(f"⚠️ Error cargando model.joblib: {str(e)}")
         
-        # Intentar cargar el scaler
+        # Si no se pudo cargar .joblib, intentar con .pkl
+        if model is None:
+            model_path_pkl = models_dir / 'random_forest_model.pkl'
+            if model_path_pkl.exists():
+                try:
+                    with open(model_path_pkl, 'rb') as f:
+                        model = pickle.load(f)
+                    st.success("✅ Modelo Random Forest cargado (pkl)")
+                except Exception as e:
+                    st.warning(f"⚠️ Error cargando model.pkl: {str(e)}")
+        
+        # ============================================================
+        # 2. CARGAR SCALER - PRIORIZAR .joblib SOBRE .pkl
+        # ============================================================
         scaler = None
-        scaler_path = models_dir / 'scaler.pkl'
         
-        if scaler_path.exists():
+        # Intentar con .joblib primero (recomendado)
+        scaler_path_joblib = models_dir / 'scaler.joblib'
+        if scaler_path_joblib.exists():
             try:
-                with open(scaler_path, 'rb') as f:
-                    scaler = pickle.load(f)
-                st.success("✅ Scaler cargado")
+                scaler = joblib.load(scaler_path_joblib)
+                st.success("✅ Scaler cargado (joblib)")
             except Exception as e:
-                st.warning(f"⚠️ Error cargando scaler.pkl: {str(e)}")
-                # Intentar con joblib
-                scaler_path_joblib = models_dir / 'scaler.joblib'
-                if scaler_path_joblib.exists():
-                    try:
-                        scaler = joblib.load(scaler_path_joblib)
-                        st.success("✅ Scaler cargado (joblib)")
-                    except Exception as e2:
-                        st.warning(f"⚠️ Error cargando scaler.joblib: {str(e2)}")
+                st.warning(f"⚠️ Error cargando scaler.joblib: {str(e)}")
         
-        # Cargar metadatos
+        # Si no se pudo cargar .joblib, intentar con .pkl
+        if scaler is None:
+            scaler_path_pkl = models_dir / 'scaler.pkl'
+            if scaler_path_pkl.exists():
+                try:
+                    with open(scaler_path_pkl, 'rb') as f:
+                        scaler = pickle.load(f)
+                    st.success("✅ Scaler cargado (pkl)")
+                except Exception as e:
+                    st.warning(f"⚠️ Error cargando scaler.pkl: {str(e)}")
+        
+        # ============================================================
+        # 3. CARGAR METADATOS
+        # ============================================================
         metadata = {
             'r2': 0.80,
             'mae': 2.86,
             'n_registros': 584,
-            'features': ['cant_productos_promedio', 'valor_ruta_promedio']
+            'features': ['cant_productos', 'valor_ruta', 
+                        'dia_semana_Friday', 'dia_semana_Monday',
+                        'dia_semana_Saturday', 'dia_semana_Sunday',
+                        'dia_semana_Thursday', 'dia_semana_Tuesday',
+                        'dia_semana_Wednesday']
         }
         
         metadata_path = models_dir / 'metadatos.pkl'
@@ -116,10 +133,14 @@ def load_models():
             except Exception as e:
                 st.warning(f"⚠️ Error cargando metadatos: {str(e)}")
         
-        # Cargar datos históricos
+        # ============================================================
+        # 4. CARGAR DATOS HISTÓRICOS
+        # ============================================================
         historico = load_historical_data()
         
-        # Si no se pudo cargar el modelo o el scaler, usar dummy
+        # ============================================================
+        # 5. VERIFICAR QUE TODO ESTÉ CARGADO
+        # ============================================================
         if model is None or scaler is None:
             st.warning("⚠️ No se pudieron cargar modelo y/o scaler. Usando predicciones dummy.")
             return create_dummy_models()
@@ -177,7 +198,11 @@ def create_dummy_models():
             'r2': 0.80,
             'mae': 2.86,
             'n_registros': 584,
-            'features': ['cant_productos_promedio', 'valor_ruta_promedio']
+            'features': ['cant_productos', 'valor_ruta', 
+                        'dia_semana_Friday', 'dia_semana_Monday',
+                        'dia_semana_Saturday', 'dia_semana_Sunday',
+                        'dia_semana_Thursday', 'dia_semana_Tuesday',
+                        'dia_semana_Wednesday']
         },
         'historico': historico,
         'cargador': CargadorDatos()
