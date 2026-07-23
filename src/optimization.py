@@ -10,9 +10,7 @@ from scipy import stats
 import os
 import matplotlib.pyplot as plt
 
-# ============================================================
-# OPTIMIZACIÓN CON PuLP
-# ============================================================
+# Optimización con PuLP
 
 def optimizar_asignacion(df_pool, n_operadores, verbose=True, tiempo_limite=30):
     """
@@ -201,9 +199,7 @@ def _asignacion_secuencial(df_pool, n_operadores):
     }
 
 
-# ============================================================
-# SIMULADOR CON 3 CAPAS DE REALISMO
-# ============================================================
+# Simulador con tres capas de realismo
 
 class SimuladorJornada:
     """
@@ -395,10 +391,7 @@ class SimuladorJornada:
         resultados['balanceo_cv'] = (resultados['balanceo_std'] / np.mean(medias_ops) * 100) if np.mean(medias_ops) > 0 else 0
         resultados['promedio_interrupciones'] = np.mean(resultados['interrupciones_ocurridas'])
 
-
-# ============================================================
-# EVALUADOR DE REBALANCEO
-# ============================================================
+# Evaluador de Rebalanceo
 
 class EvaluadorRebalanceo:
     """
@@ -497,10 +490,7 @@ class EvaluadorRebalanceo:
         
         return float(porcentaje_retrasados)
 
-
-# ============================================================
-# PLANIFICADOR DE JORNADA
-# ============================================================
+# Planificador de Jornada
 
 class PlanificadorJornada:
     """

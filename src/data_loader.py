@@ -319,9 +319,7 @@ class CargadorDatos:
         return df
 
 
-# ==================================================
-# FUNCIONES DE VALIDACIÓN RÁPIDA
-# ==================================================
+# Funciones de validación
 
 def verificar_carga():
     """Verifica que los datos se cargan correctamente"""
