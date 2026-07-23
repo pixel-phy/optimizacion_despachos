@@ -582,7 +582,7 @@ if ejecutar:
                                     historial = df_guardar
                                 
                                 historial.to_csv(historial_path, index=False)
-                                st.success("💾 Planificación guardada en historial")
+                                st.success("Planificación guardada en historial")
                             except Exception as e:
                                 st.warning(f"No se pudo guardar en historial: {str(e)}")
                     

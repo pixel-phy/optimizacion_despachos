@@ -17,16 +17,15 @@ st.set_page_config(
     layout="wide"
 )
 
-st.title("Validación Retrospectiva de tus Rutas")
+st.title("Validación Retrospectiva de Rutas")
 st.markdown("---")
 
 st.markdown("""
-### Validación de tus rutas personales
+### Validación de mis rutas personales
 
-Esta validación compara **ÚNICAMENTE tus rutas personales** (21-30 por día) 
+Esta validación compara **ÚNICAMENTE mis rutas personales** (21-30 por día) 
 con las predicciones del modelo, no el total de rutas del equipo.
 
-**Importante:** Tu histórico contiene solo las rutas que tú personalmente procesaste.
 """)
 
 # Cargar modelos y datos
@@ -42,7 +41,7 @@ col1, col2 = st.columns([2, 1])
 
 with col1:
     fecha_seleccionada = st.selectbox(
-        "Selecciona una fecha histórica (de tus jornadas):",
+        "Selecciona una fecha histórica (mis jornadas):",
         options=fechas,
         format_func=lambda x: pd.to_datetime(x).strftime('%Y-%m-%d'),
         key="fecha_validacion"
@@ -57,7 +56,7 @@ with col2:
     )
 
 if ejecutar_validacion and fecha_seleccionada:
-    with st.spinner(f"Validando tus rutas del {fecha_seleccionada}..."):
+    with st.spinner(f"Validando rutas del {fecha_seleccionada}..."):
         try:
             
             # 1. CARGAR SOLO TUS RUTAS de esa fecha
@@ -68,7 +67,7 @@ if ejecutar_validacion and fecha_seleccionada:
             df_tus_rutas = df_historico[df_historico['fecha'] == fecha_seleccionada].copy()
             
             if df_tus_rutas.empty:
-                st.warning(f"No hay registros de tus rutas para la fecha {fecha_seleccionada}")
+                st.warning(f"No hay registros de rutas para la fecha {fecha_seleccionada}")
                 st.info("""
                     **Posibles causas:**
                     - No trabajaste ese día
@@ -79,7 +78,7 @@ if ejecutar_validacion and fecha_seleccionada:
                 
                 # 2. MOSTRAR RESUMEN DE TUS RUTAS
                 
-                st.success(f"Encontradas {len(df_tus_rutas)} rutas tuyas para el {fecha_seleccionada}")
+                st.success(f"Encontradas {len(df_tus_rutas)} rutas para el {fecha_seleccionada}")
                 
                 # Mostrar estadísticas básicas de tus rutas
                 col1, col2, col3 = st.columns(3)
@@ -111,15 +110,14 @@ if ejecutar_validacion and fecha_seleccionada:
                 tiempos_reales = df_tus_rutas['tiempo_preparacion_minutos'].tolist()
                 
                 # Mostrar tus rutas
-                with st.expander("Ver tus rutas de ese día"):
+                with st.expander("Ver rutas de ese día"):
                     st.dataframe(
                         df_tus_rutas[['id_ruta', 'tiempo_preparacion_minutos', 'cant_productos', 'valor_ruta']],
                         use_container_width=True,
                         hide_index=True
                     )
                 
-                
-                # 4. EJECUTAR SIMULACIÓN CON TUS RUTAS
+                # 4. EJECUTAR SIMULACIÓN CON RUTAS
                 
                 from utils.planners import ejecutar_planificacion_simple
                 from datetime import time
@@ -141,10 +139,10 @@ if ejecutar_validacion and fecha_seleccionada:
                 
                 if resultados:
                     
-                    # 5. COMPARAR TUS DATOS REALES VS SIMULADOS
+                    # 5. COMPARAR DATOS REALES VS SIMULADOS
                     
                     st.divider()
-                    st.subheader(f"📊 Comparativa de tus rutas - {fecha_seleccionada}")
+                    st.subheader(f"Comparativa de tus rutas - {fecha_seleccionada}")
                     
                     # Métricas comparativas
                     col1, col2, col3, col4 = st.columns(4)
@@ -195,8 +193,7 @@ if ejecutar_validacion and fecha_seleccionada:
                     
                     st.divider()
                     
-                    
-                    # 6. GRÁFICO COMPARATIVO DE TUS RUTAS
+                    # 6. GRÁFICO COMPARATIVO DE RUTAS
                     
                     st.subheader("Comparativa Ruta por Ruta (Tus rutas)")
                     
@@ -229,7 +226,6 @@ if ejecutar_validacion and fecha_seleccionada:
                         hide_index=True
                     )
                     
-                    
                     # 8. ESTADÍSTICAS ADICIONALES
                     
                     col1, col2, col3 = st.columns(3)
@@ -254,7 +250,6 @@ if ejecutar_validacion and fecha_seleccionada:
                         st.write(f"• Mediana: {df_errores['Error %'].median():.1f}%")
                         st.write(f"• Máximo: {df_errores['Error %'].max():.1f}%")
                     
-                    
                     # 9. CONCLUSIÓN DE VALIDACIÓN
                     
                     st.divider()
@@ -263,21 +258,21 @@ if ejecutar_validacion and fecha_seleccionada:
                     
                     if error_promedio < 5:
                         st.success(f"""
-                        **Excelente validación de tus rutas!** 
+                        **Excelente validación de rutas!** 
                         
-                        El modelo predice tus tiempos con un error promedio del {error_promedio:.1f}%.
-                        Puedes confiar plenamente en las predicciones para tus rutas personales.
+                        El modelo predice los tiempos con un error promedio del {error_promedio:.1f}%.
+                        Se puede confiar plenamente en las predicciones para las rutas.
                         """)
                     elif error_promedio < 10:
                         st.warning(f"""
-                        **Buena validación de tus rutas** 
+                        **Buena validación de rutas** 
                         
-                        El modelo predice tus tiempos con un error promedio del {error_promedio:.1f}%.
+                        El modelo predice los tiempos con un error promedio del {error_promedio:.1f}%.
                         Considera revisar las rutas con mayor error para entender las desviaciones.
                         """)
                     else:
                         st.error(f"""
-                        **Error significativo en tus rutas** 
+                        **Error significativo en rutas** 
                         
                         El modelo tiene un error promedio del {error_promedio:.1f}% en tus rutas.
                         **Posibles causas:**
@@ -285,7 +280,6 @@ if ejecutar_validacion and fecha_seleccionada:
                         - Las condiciones de trabajo fueron atípicas
                         - El modelo necesita recalibración con tus datos recientes
                         """)
-                    
                     
                     # 10. GUARDAR RESULTADOS DE VALIDACIÓN
                     
@@ -310,7 +304,7 @@ if ejecutar_validacion and fecha_seleccionada:
                         """)
                 
                 else:
-                    st.error("Error en la simulación de tus rutas")
+                    st.error("Error en la simulación de rutas")
                     
         except Exception as e:
             st.error(f"Error en validación: {str(e)}")
@@ -318,14 +312,14 @@ if ejecutar_validacion and fecha_seleccionada:
             st.code(traceback.format_exc())
 
 else:
-    st.info("Selecciona una fecha de tus jornadas y presiona 'Validar mis rutas'")
+    st.info("Selecciona una fecha de las jornadas y presiona 'Validar mis rutas'")
     
     with st.expander("¿Cómo funciona esta validación?"):
         st.markdown("""
         ### Validación Personalizada
         
         **¿Qué valida exactamente?**
-        - Solo mis rutas personales (21-30 por día)
+        - Solo mis rutas (21-30 por día)
         
         **¿Por qué es importante?**
         - El dataset contiene solo mis registros
