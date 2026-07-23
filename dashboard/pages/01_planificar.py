@@ -26,7 +26,7 @@ st.set_page_config(
     layout="wide"
 )
 
-st.title("📋 Planificar Jornada de Despachos")
+st.title("Planificar Jornada de Despachos")
 st.markdown("---")
 
 # Inicializar estado de sesión
@@ -36,22 +36,21 @@ if 'resultados_planificacion' not in st.session_state:
 # Cargar modelos
 models = load_models()
 
-# ============================================================
-# VERIFICAR QUE EL CARGADOR ESTÉ DISPONIBLE
-# ============================================================
+# Verificar que el cargador esté disponible
+
 if 'cargador' not in models or models['cargador'] is None:
     try:
         models['cargador'] = CargadorDatos()
-        st.success("✅ Cargador de datos inicializado")
+        st.success("Cargador de datos inicializado")
     except Exception as e:
-        st.warning(f"⚠️ No se pudo inicializar el cargador: {str(e)}")
+        st.warning(f"No se pudo inicializar el cargador: {str(e)}")
 
 # Configuración en sidebar
 with st.sidebar:
-    st.header("⚙️ Configuración de la Jornada")
+    st.header("Configuración de la Jornada")
     
     # 1. Carga de rutas
-    st.subheader("📋 Carga de Rutas")
+    st.subheader("Carga de Rutas")
     opcion_carga = st.radio(
         "Método de carga:",
         ["Pegar IDs", "Cargar archivo"],
@@ -70,7 +69,7 @@ with st.sidebar:
         if texto_rutas:
             numeros = re.findall(r'\d+', texto_rutas)
             rutas_ids = [int(n) for n in numeros]
-            st.info(f"✅ {len(rutas_ids)} rutas cargadas")
+            st.info(f"{len(rutas_ids)} rutas cargadas")
     else:
         archivo = st.file_uploader(
             "Carga un archivo .txt o .csv con los IDs",
@@ -86,14 +85,14 @@ with st.sidebar:
                     contenido = archivo.read().decode('utf-8')
                     numeros = re.findall(r'\d+', contenido)
                     rutas_ids = [int(n) for n in numeros]
-                st.info(f"✅ {len(rutas_ids)} rutas cargadas desde archivo")
+                st.info(f"{len(rutas_ids)} rutas cargadas desde archivo")
             except Exception as e:
                 st.error(f"Error al leer archivo: {str(e)}")
     
     st.divider()
     
     # 2. Parámetros de la jornada
-    st.subheader("👥 Personal")
+    st.subheader("Personal")
     n_operadores = st.slider(
         "Número de operadores:",
         min_value=1,
@@ -103,7 +102,7 @@ with st.sidebar:
         key="n_operadores"
     )
     
-    st.subheader("⏰ Horario")
+    st.subheader("Horario")
     hora_inicio = st.time_input(
         "Hora de inicio:",
         value=time(15, 0),
@@ -119,7 +118,7 @@ with st.sidebar:
         key="meta_horas"
     )
     
-    st.subheader("🎲 Simulación")
+    st.subheader("Simulación")
     n_simulaciones = st.slider(
         "Número de simulaciones:",
         min_value=100,
@@ -132,7 +131,7 @@ with st.sidebar:
     st.divider()
     
     # 3. Eventos del día
-    st.subheader("📅 Eventos Programados")
+    st.subheader("Eventos Programados")
     agregar_evento = st.checkbox("Agregar reuniones/programas", key="agregar_evento")
     eventos = []
     
@@ -159,9 +158,9 @@ with st.sidebar:
                     'afecta': afecta_numeros,
                     'descripcion': f"Evento a las {hora_evento.strftime('%H:%M')}"
                 })
-                st.success(f"✅ Evento agregado: {hora_evento.strftime('%H:%M')} - {duracion_evento}min")
+                st.success(f"Evento agregado: {hora_evento.strftime('%H:%M')} - {duracion_evento}min")
     
-    st.subheader("⚠️ Interrupciones Aleatorias")
+    st.subheader("Interrupciones Aleatorias")
     prob_interrupcion = st.slider(
         "Probabilidad de interrupción (por hora):",
         min_value=0.0,
@@ -185,7 +184,7 @@ with st.sidebar:
     
     # Botón de ejecución
     ejecutar = st.button(
-        "🚀 Ejecutar Planificación",
+        "Ejecutar Planificación",
         type="primary",
         use_container_width=True,
         key="btn_ejecutar"
@@ -194,9 +193,9 @@ with st.sidebar:
 # Área principal de resultados
 if ejecutar:
     if not rutas_ids:
-        st.warning("⚠️ No hay rutas cargadas. Por favor carga los IDs de ruta.")
+        st.warning("No hay rutas cargadas. Por favor carga los IDs de ruta.")
     else:
-        with st.spinner("🔄 Ejecutando planificación..."):
+        with st.spinner("Ejecutando planificación..."):
             try:
                 # Preparar configuración
                 config = {
@@ -217,7 +216,7 @@ if ejecutar:
                     st.session_state.resultados_planificacion = resultados
                     
                     # Mostrar resultados
-                    st.success("✅ Planificación completada exitosamente!")
+                    st.success("Planificación completada exitosamente!")
                     
                     # Métricas principales
                     col1, col2, col3, col4 = st.columns(4)
@@ -229,7 +228,7 @@ if ejecutar:
                     col1, col2 = st.columns(2)
                     
                     with col1:
-                        st.subheader("⚖️ Balanceo de Cargas")
+                        st.subheader("Balanceo de Cargas")
                         fig_balance = crear_grafico_balanceo(resultados.get('asignacion', pd.DataFrame()))
                         if fig_balance:
                             st.plotly_chart(fig_balance, use_container_width=True)
@@ -237,7 +236,7 @@ if ejecutar:
                             st.info("No hay datos de asignación para mostrar")
                     
                     with col2:
-                        st.subheader("📊 Distribución del Makespan")
+                        st.subheader("Distribución del Makespan")
                         fig_dist = crear_grafico_distribucion(resultados)
                         if fig_dist:
                             st.plotly_chart(fig_dist, use_container_width=True)
@@ -245,14 +244,14 @@ if ejecutar:
                             st.info("No hay datos de simulación para mostrar")
                     
                     # Gauge de riesgo
-                    st.subheader("🎯 Medidor de Riesgo de Horas Extra")
+                    st.subheader("Medidor de Riesgo de Horas Extra")
                     prob_extra = resultados.get('prob_extra', 0.0)
                     fig_gauge = crear_gauge_riesgo(prob_extra)
                     if fig_gauge:
                         st.plotly_chart(fig_gauge, use_container_width=True)
                     
                     # Tabla de asignación
-                    st.subheader("📋 Tabla de Asignación")
+                    st.subheader("Tabla de Asignación")
                     asignacion = resultados.get('asignacion', pd.DataFrame())
                     
                     if not asignacion.empty:
@@ -269,10 +268,9 @@ if ejecutar:
                         
                         st.divider()
                         
-                        # ============================================================
-                        # RESUMEN POR OPERADOR
-                        # ============================================================
-                        st.subheader("📊 Resumen de Carga por Operador")
+                        # Resumen por operador
+
+                        st.subheader("Resumen de Carga por Operador")
                         
                         # Calcular estadísticas por operador
                         if 'operador' in asignacion.columns and 'tiempo_estimado' in asignacion.columns:
@@ -324,10 +322,10 @@ if ejecutar:
                                 }
                             )
                             
-                            # ============================================================
-                            # TARJETAS DE RESUMEN RÁPIDO POR OPERADOR
-                            # ============================================================
-                            st.subheader("🎯 Resumen Rápido por Operador")
+                            
+                            # Tarjetas de resumen rápido por operador
+                            
+                            st.subheader("Resumen Rápido por Operador")
                             
                             # Crear columnas para cada operador
                             num_operadores = len(resumen_operador)
@@ -371,17 +369,17 @@ if ejecutar:
                                         </h4>
                                         <hr style="margin: 8px 0; border-color: {color_borde};">
                                         <p style="margin: 4px 0; font-size: 14px; color: {color_texto};">
-                                            <b>📦 Rutas:</b> {int(row_data['N° Rutas'])}
+                                            <b>Rutas:</b> {int(row_data['N° Rutas'])}
                                         </p>
                                         <p style="margin: 4px 0; font-size: 14px; color: {color_texto};">
-                                            <b>⏱️ Total:</b> {row_data['Tiempo Total (min)']:.1f} min 
+                                            <b>Total:</b> {row_data['Tiempo Total (min)']:.1f} min 
                                             ({row_data['Tiempo Total (horas)']:.2f} h)
                                         </p>
                                         <p style="margin: 4px 0; font-size: 14px; color: {color_texto};">
-                                            <b>📊 Promedio:</b> {row_data['Tiempo Promedio (min)']:.1f} min/ruta
+                                            <b>Promedio:</b> {row_data['Tiempo Promedio (min)']:.1f} min/ruta
                                         </p>
                                         <p style="margin: 4px 0; font-size: 14px; color: {color_texto};">
-                                            <b>📈 Rango:</b> {row_data['Tiempo Mínimo (min)']:.0f} - 
+                                            <b>Rango:</b> {row_data['Tiempo Mínimo (min)']:.0f} - 
                                             {row_data['Tiempo Máximo (min)']:.0f} min
                                         </p>
                                         <p style="margin: 4px 0; font-size: 14px; color: {color_texto};">
@@ -393,9 +391,9 @@ if ejecutar:
                                     </div>
                                     """, unsafe_allow_html=True)
                             
-                            # ============================================================
-                            # MÉTRICAS DE BALANCEO
-                            # ============================================================
+                            
+                            # Métricas de balanceo
+                            
                             st.divider()
                             
                             col1, col2, col3 = st.columns(3)
@@ -407,7 +405,7 @@ if ejecutar:
                                 diferencia_pct = (diferencia / max_carga) * 100 if max_carga > 0 else 0
                                 
                                 st.metric(
-                                    "⚖️ Balanceo de Carga",
+                                    "Balanceo de Carga",
                                     f"{diferencia:.1f} min",
                                     f"{diferencia_pct:.1f}% de diferencia",
                                     delta_color="inverse" if diferencia_pct < 15 else "off"
@@ -416,7 +414,7 @@ if ejecutar:
                             with col2:
                                 carga_promedio = resumen_operador['Tiempo Total (min)'].mean()
                                 st.metric(
-                                    "📊 Carga Promedio",
+                                    "Carga Promedio",
                                     f"{carga_promedio:.1f} min",
                                     f"{carga_promedio/60:.2f} horas"
                                 )
@@ -426,17 +424,16 @@ if ejecutar:
                                 total_tiempo = resumen_operador['Tiempo Total (min)'].sum()
                                 
                                 st.metric(
-                                    "📈 Eficiencia",
+                                    "Eficiencia",
                                     f"{total_rutas / len(resumen_operador):.1f} rutas/op",
                                     f"{total_tiempo / 60:.1f} horas totales"
                                 )
                             
-                            # ============================================================
                             # SUGERENCIAS DE REBALANCEO
-                            # ============================================================
+                            
                             if len(resumen_operador) > 1:
                                 st.divider()
-                                st.subheader("💡 Sugerencias de Rebalanceo")
+                                st.subheader("Sugerencias de Rebalanceo")
                                 
                                 max_op = resumen_operador.loc[resumen_operador['Tiempo Total (min)'].idxmax()]
                                 min_op = resumen_operador.loc[resumen_operador['Tiempo Total (min)'].idxmin()]
@@ -455,12 +452,12 @@ if ejecutar:
                                     nueva_carga_min = min_op['Tiempo Total (min)'] + rutas_a_mover * tiempo_promedio_ruta
                                     
                                     st.warning(f"""
-                                    ⚠️ **Desbalanceo detectado:**
+                                    **Desbalanceo detectado:**
                                     
                                     - **{max_op['operador']}** tiene **{diferencia:.1f} min** más que **{min_op['operador']}** 
                                       ({diferencia_pct:.1f}% de diferencia)
                                     
-                                    📋 **Recomendación:**
+                                    **Recomendación:**
                                     - Mover **{rutas_a_mover} rutas** de **{max_op['operador']}** a **{min_op['operador']}**
                                     - Nuevo balanceo estimado:
                                       - {max_op['operador']}: {nueva_carga_max:.1f} min ({nueva_carga_max/60:.2f} h)
@@ -468,20 +465,20 @@ if ejecutar:
                                       - Diferencia: {nueva_diferencia:.1f} min
                                     """)
                                     
-                                    st.info("💡 **Sugerencia:** Re-ejecuta la planificación con un rebalanceo manual o ajusta el número de operadores.")
+                                    st.info("**Sugerencia:** Re-ejecuta la planificación con un rebalanceo manual o ajusta el número de operadores.")
                                 else:
                                     st.success(f"""
-                                    ✅ **Buen balanceo de carga:**
+                                    **Buen balanceo de carga:**
                                     
                                     - Diferencia entre operadores: **{diferencia:.1f} min** ({diferencia_pct:.1f}%)
                                     - Todos los operadores tienen cargas equilibradas
                                     - No se requieren ajustes de rebalanceo
                                     """)
                             
-                            # ============================================================
+                            
                             # GRÁFICO DE BALANCEO MEJORADO
-                            # ============================================================
-                            st.subheader("📊 Análisis de Carga por Operador")
+                            
+                            st.subheader("Análisis de Carga por Operador")
                             
                             import plotly.graph_objects as go
                             from plotly.subplots import make_subplots
@@ -548,22 +545,22 @@ if ejecutar:
                             
                             st.plotly_chart(fig_balance_detallado, use_container_width=True)
                             
-                            # ============================================================
+                            
                             # BOTÓN DE DESCARGA
-                            # ============================================================
+                            
                             timestamp = datetime.now().strftime('%Y%m%d_%H%M')
                             csv = df_show.to_csv(index=False)
                             st.download_button(
-                                label="📥 Descargar asignación (CSV)",
+                                label="Descargar asignación (CSV)",
                                 data=csv,
                                 file_name=f"asignacion_{timestamp}.csv",
                                 mime="text/csv",
                                 key="download_planificacion"
                             )
                             
-                            # ============================================================
+                            
                             # GUARDAR EN HISTORIAL
-                            # ============================================================
+                            
                             try:
                                 historial_path = Path(__file__).parent.parent / 'data' / 'historial.csv'
                                 historial_path.parent.mkdir(parents=True, exist_ok=True)
@@ -590,20 +587,20 @@ if ejecutar:
                                 st.warning(f"No se pudo guardar en historial: {str(e)}")
                     
                     else:
-                        st.warning("⚠️ No se generó asignación")
+                        st.warning("No se generó asignación")
                 
                 else:
-                    st.error("❌ Error en la planificación. Revisa los logs.")
+                    st.error("Error en la planificación. Revisa los logs.")
             
             except Exception as e:
-                st.error(f"❌ Error: {str(e)}")
+                st.error(f"Error: {str(e)}")
                 import traceback
                 st.code(traceback.format_exc())
 
 else:
     if st.session_state.resultados_planificacion:
         # Mostrar resultados anteriores si existen
-        st.info("📊 Mostrando última planificación realizada")
+        st.info("Mostrando última planificación realizada")
         resultados = st.session_state.resultados_planificacion
         
         # Métricas principales
@@ -625,4 +622,4 @@ else:
             if fig_dist:
                 st.plotly_chart(fig_dist, use_container_width=True)
     else:
-        st.info("👈 Configura los parámetros en la barra lateral y presiona 'Ejecutar Planificación'")
+        st.info("Configura los parámetros en la barra lateral y presiona 'Ejecutar Planificación'")
