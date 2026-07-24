@@ -1,0 +1,4 @@
+Escenario,Tiempo Cierre (min),Tiempo Cierre (horas),Prob. Horas Extra (%),Prob. >9 horas (%),Balanceo (std min),Std Salida (min),Makespan (min),Eficiencia (%)
+A - Línea Base (3 ops),370.8,6.2,0.0,0.0,2.0,13.0,360.2,94
+B - Día Pico (3 ops),444.8,7.4,0.0,0.0,0.7,13.5,360.2,113
+C - Ausentismo (2 ops),551.2,9.2,100.0,81.0,0.1,17.2,540.7,140
