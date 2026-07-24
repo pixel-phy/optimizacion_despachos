@@ -52,3 +52,17 @@ Thumbs.db
 # Logs
 *.log
 logs/
+
+# Modelos entrenados (pesan, mejor en Kaggle/Drive)
+models/*.pkl
+models/*.joblib
+models/*.h5
+
+# Dashboard data
+dashboard/data/*.csv
+
+# Kaggle
+kaggle_upload/
+
+# Streamlit
+.streamlit/
