@@ -117,7 +117,10 @@ def ejecutar_planificacion_simple(config, models):
         # Calcular estadísticas adicionales
         makespan_planificado = opt['makespan']
         makespan_simulado = sim['mean_makespan']
-        prob_extra = sim['prob_horas_extra'] / 100  # Convertir a fracción
+        
+        # CORRECCIÓN #5: Mantener prob_extra como fracción (0-1) consistentemente
+        # PlanificadorJornada devuelve prob_horas_extra como porcentaje (0-100)
+        prob_extra = sim['prob_horas_extra'] / 100  # Convertir a fracción 0-1
         
         # Carga por operador
         carga_operadores = {}
@@ -139,6 +142,8 @@ def ejecutar_planificacion_simple(config, models):
         # ============================================================
         resultados = {
             'asignacion': df_asignacion,
+            # CORRECCIÓN #1 y #2: tiempos_individuales son las predicciones PURAS del modelo
+            # (sin ruido Monte Carlo). Se usan para comparación real vs simulado.
             'tiempos_individuales': [row['tiempo_estimado'] for _, row in df_asignacion.iterrows()],
             'tiempos_simulados': tiempos_simulados,
             'makespan_planificado': makespan_planificado,
@@ -146,7 +151,7 @@ def ejecutar_planificacion_simple(config, models):
             'makespan_std': sim['std_makespan'],
             'makespan_p5': np.percentile(tiempos_simulados, 5),
             'makespan_p95': sim['p95_makespan'],
-            'prob_extra': prob_extra,
+            'prob_extra': prob_extra,  # Fracción 0-1
             'carga_operadores': carga_operadores,
             'balanceo': balanceo,
             'balanceo_pct': balanceo_pct,

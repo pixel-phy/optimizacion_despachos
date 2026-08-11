@@ -116,6 +116,7 @@ def load_models():
         # ============================================================
         # 3. CARGAR METADATOS
         # ============================================================
+        # CORRECCIÓN #5: Extraer R² correctamente del diccionario anidado de métricas
         metadata = {
             'r2': 0.80,
             'mae': 2.86,
@@ -127,7 +128,23 @@ def load_models():
         if metadata_path.exists():
             try:
                 with open(metadata_path, 'rb') as f:
-                    metadata = pickle.load(f)
+                    metadatos_raw = pickle.load(f)
+                
+                # Extraer métricas correctamente del formato guardado en NB2
+                if isinstance(metadatos_raw, dict):
+                    # El R² está en metadatos_raw['metricas']['random_forest']['R²']
+                    if 'metricas' in metadatos_raw:
+                        metricas_rf = metadatos_raw['metricas'].get('random_forest', {})
+                        metadata['r2'] = metricas_rf.get('R²', 0.80)
+                        metadata['mae'] = metricas_rf.get('MAE (min)', 2.86)
+                    
+                    metadata['n_registros'] = metadatos_raw.get('num_registros', 584)
+                    metadata['features'] = metadatos_raw.get('features', [])
+                    metadata['mejor_modelo'] = metadatos_raw.get('mejor_modelo', 'Random Forest')
+                    metadata['fecha_entrenamiento'] = metadatos_raw.get('fecha_entrenamiento', '')
+                    metadata['num_rutas'] = metadatos_raw.get('num_rutas', 0)
+                    metadata['rango_fechas'] = metadatos_raw.get('rango_fechas', {})
+                
                 st.success("✅ Metadatos cargados")
             except Exception as e:
                 st.warning(f"⚠️ Error cargando metadatos: {str(e)}")
@@ -247,25 +264,44 @@ def predict_tiempo(model, scaler, ruta_data, dia_semana=None, historico=None):
         # Obtener ID de la ruta
         ruta_id = ruta_data.get('id_ruta')
         
+        # CORRECCIÓN #3: Buscar la ruta en el histórico completo para obtener 
+        # velocidad_historica, frecuencia y es_ruta_flash REALES
+        # en lugar de usar valores hardcodeados (1500, 1, 0)
+        
+        # Valores por defecto (solo si la ruta no existe en absoluto)
+        if historico is not None and not historico.empty:
+            velocidad_historica = historico['velocidad_despacho'].median() if 'velocidad_despacho' in historico.columns else 1500
+        else:
+            velocidad_historica = 1500
+        frecuencia_ruta = 1
+        es_ruta_flash = 0
+        cant_productos = ruta_data.get('cant_productos', 30)
+        valor_ruta = ruta_data.get('valor_ruta', 800)
+        
         # Buscar la ruta en el histórico
         if historico is not None and not historico.empty and ruta_id is not None:
             registros_ruta = historico[historico['id_ruta'] == ruta_id]
             
             if not registros_ruta.empty:
+                # CORRECCIÓN #3: Usar los valores REALES del histórico
                 cant_productos = registros_ruta['cant_productos'].mean()
                 valor_ruta = registros_ruta['valor_ruta'].mean()
                 
-                # Si hay más de un registro, usar el promedio real
+                # Calcular velocidad histórica real de esta ruta
+                if 'velocidad_despacho' in registros_ruta.columns:
+                    velocidad_historica = registros_ruta['velocidad_despacho'].mean()
+                
+                # Frecuencia real de esta ruta en el histórico
+                frecuencia_ruta = len(registros_ruta)
+                
+                # Determinar si es ruta flash basado en su velocidad real
+                es_ruta_flash = 1 if velocidad_historica > 5000 else 0
+                
+                # Si hay más de un registro, usar el promedio real como fallback
                 if len(registros_ruta) > 1:
                     tiempo_promedio = registros_ruta['tiempo_preparacion_minutos'].mean()
                     variabilidad = np.random.normal(0, 0.5)
                     return max(5, tiempo_promedio + variabilidad)
-            else:
-                cant_productos = ruta_data.get('cant_productos', 30)
-                valor_ruta = ruta_data.get('valor_ruta', 800)
-        else:
-            cant_productos = ruta_data.get('cant_productos', 30)
-            valor_ruta = ruta_data.get('valor_ruta', 800)
         
         if dia_semana is None:
             dia_semana = 0
@@ -283,11 +319,6 @@ def predict_tiempo(model, scaler, ruta_data, dia_semana=None, historico=None):
         # Flags
         es_jueves = 1 if dia_semana == 3 else 0
         es_lunes_o_viernes = 1 if dia_semana in [0, 4] else 0
-        
-        # Valores por defecto
-        velocidad_historica = 1500
-        frecuencia_ruta = 1
-        es_ruta_flash = 0
         
         # Crear DataFrame en el orden correcto
         X = pd.DataFrame([[

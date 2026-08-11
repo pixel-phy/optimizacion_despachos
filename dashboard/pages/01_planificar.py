@@ -559,7 +559,9 @@ if ejecutar:
                             )
                             
                             
-                            # GUARDAR EN HISTORIAL
+                            # ============================================================
+                            # GUARDAR EN HISTORIAL (CORREGIDO - Corrección #4)
+                            # ============================================================
                             
                             try:
                                 historial_path = Path(__file__).parent.parent / 'data' / 'historial.csv'
@@ -572,9 +574,25 @@ if ejecutar:
                                 df_guardar['prob_extra'] = prob_extra
                                 df_guardar['makespan_simulado'] = resultados.get('makespan_simulado', 0)
                                 
+                                # CORRECCIÓN #4: Normalizar el campo 'operador' a formato consistente
+                                # En el CSV hay mezcla de "Operador 1" (string) y "1" (número)
+                                # Esto asegura que siempre sea "Operador N"
+                                df_guardar['operador'] = df_guardar['operador'].apply(
+                                    lambda x: f"Operador {int(x)}" 
+                                    if isinstance(x, (int, float)) or (isinstance(x, str) and x.strip().isdigit()) 
+                                    else str(x)
+                                )
+                                
                                 if historial_path.exists() and historial_path.stat().st_size > 0:
                                     try:
                                         historial = pd.read_csv(historial_path)
+                                        # También normalizar el historial existente al cargar
+                                        if 'operador' in historial.columns:
+                                            historial['operador'] = historial['operador'].apply(
+                                                lambda x: f"Operador {int(x)}" 
+                                                if isinstance(x, (int, float)) or (isinstance(x, str) and x.strip().isdigit()) 
+                                                else str(x)
+                                            )
                                         historial = pd.concat([historial, df_guardar], ignore_index=True)
                                     except pd.errors.EmptyDataError:
                                         historial = df_guardar

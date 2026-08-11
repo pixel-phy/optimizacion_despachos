@@ -144,38 +144,55 @@ if ejecutar_validacion and fecha_seleccionada:
                     st.divider()
                     st.subheader(f"Comparativa de tus rutas - {fecha_seleccionada}")
                     
+                    # CORRECCIÓN #1 y #2: Usar tiempos_individuales (predicciones puras)
+                    # en lugar de makespan_simulado (que incluye ruido Monte Carlo)
+                    tiempos_simulados = resultados.get('tiempos_individuales', [])
+                    
+                    # CORRECCIÓN #2: NO inventar datos si hay discrepancia
+                    if not tiempos_simulados:
+                        st.error("❌ Error: La simulación no devolvió tiempos individuales.")
+                        st.info("Revisa que `ejecutar_planificacion_simple` devuelva 'tiempos_individuales'")
+                        st.stop()
+                    
+                    if len(tiempos_simulados) != len(tiempos_reales):
+                        st.error(
+                            f"❌ Error de discrepancia: "
+                            f"La simulación devolvió {len(tiempos_simulados)} tiempos "
+                            f"pero hay {len(tiempos_reales)} rutas reales."
+                        )
+                        st.info(
+                            "Posibles causas:\n"
+                            "- El planificador no encontró algunas rutas en el histórico\n"
+                            "- Las rutas se filtraron durante la simulación\n"
+                            "- Revisa `planners.py` → `resultados['tiempos_individuales']`"
+                        )
+                        st.stop()
+                    
+                    # CORRECCIÓN #1: Calcular tiempo simulado como SUMA de predicciones puras
+                    tiempo_simulado_total = sum(tiempos_simulados)
+                    
                     # Métricas comparativas
                     col1, col2, col3, col4 = st.columns(4)
-                    
-                    tiempo_real_total = sum(tiempos_reales)
-                    makespan_simulado = resultados.get('makespan_simulado', 0)
-                    
-                    # Obtener tiempos individuales simulados
-                    tiempos_simulados = resultados.get('tiempos_individuales', [])
-                    if len(tiempos_simulados) > len(tiempos_reales):
-                        tiempos_simulados = tiempos_simulados[:len(tiempos_reales)]
-                    elif len(tiempos_simulados) < len(tiempos_reales):
-                        import random
-                        while len(tiempos_simulados) < len(tiempos_reales):
-                            tiempos_simulados.append(random.uniform(10, 25))
                     
                     with col1:
                         st.metric(
                             "Tiempo Real",
-                            f"{tiempo_real_total:.1f} min",
-                            f"{tiempo_real_total/60:.1f} horas"
+                            f"{tiempo_total_real:.1f} min",
+                            f"{tiempo_total_real/60:.1f} horas"
                         )
                     
                     with col2:
                         st.metric(
                             "Tiempo Simulado",
-                            f"{makespan_simulado:.1f} min",
-                            f"{makespan_simulado/60:.1f} horas"
+                            f"{tiempo_simulado_total:.1f} min",
+                            f"{tiempo_simulado_total/60:.1f} horas",
+                            delta=f"{tiempo_simulado_total - tiempo_total_real:+.1f} min vs real",
+                            delta_color="inverse"
                         )
                     
                     with col3:
-                        error = abs(tiempo_real_total - makespan_simulado)
-                        error_pct = (error / tiempo_real_total) * 100 if tiempo_real_total > 0 else 0
+                        error = abs(tiempo_total_real - tiempo_simulado_total)
+                        error_pct = (error / tiempo_total_real) * 100 if tiempo_total_real > 0 else 0
                         st.metric(
                             "Error Total",
                             f"{error:.1f} min",
@@ -213,7 +230,7 @@ if ejecutar_validacion and fecha_seleccionada:
                     df_errores = pd.DataFrame({
                         'ID Ruta': df_tus_rutas['id_ruta'].tolist(),
                         'Tiempo Real (min)': tiempos_reales,
-                        'Tiempo Simulado (min)': tiempos_simulados[:len(tiempos_reales)],
+                        'Tiempo Simulado (min)': tiempos_simulados,
                         'Error (min)': errores_ruta,
                         'Error %': [(e/r*100) if r > 0 else 0 for e, r in zip(errores_ruta, tiempos_reales)]
                     })
