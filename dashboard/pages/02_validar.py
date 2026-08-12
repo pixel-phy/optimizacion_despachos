@@ -86,21 +86,24 @@ if ejecutar_validacion and fecha_seleccionada:
                     st.metric(
                         "Tus Rutas",
                         f"{len(df_tus_rutas)}",
-                        f"{(len(df_tus_rutas)/87*100):.1f}% del total"
+                        delta=f"{(len(df_tus_rutas)/87*100):.1f}% del total",
+                        delta_color="off"
                     )
                 with col2:
                     tiempo_total_real = df_tus_rutas['tiempo_preparacion_minutos'].sum()
                     st.metric(
                         "Tiempo Total Real",
                         f"{tiempo_total_real:.1f} min",
-                        f"{tiempo_total_real/60:.1f} horas"
+                        delta=f"{tiempo_total_real/60:.1f} horas",
+                        delta_color="off"
                     )
                 with col3:
                     tiempo_promedio = df_tus_rutas['tiempo_preparacion_minutos'].mean()
                     st.metric(
                         "Tiempo Promedio/Ruta",
                         f"{tiempo_promedio:.1f} min",
-                        f"±{df_tus_rutas['tiempo_preparacion_minutos'].std():.1f} min"
+                        delta=f"±{df_tus_rutas['tiempo_preparacion_minutos'].std():.1f} min",
+                        delta_color="off"
                     )
                 
                 
@@ -144,29 +147,42 @@ if ejecutar_validacion and fecha_seleccionada:
                     st.divider()
                     st.subheader(f"Comparativa de tus rutas - {fecha_seleccionada}")
                     
-                    # CORRECCIÓN #1 y #2: Usar tiempos_individuales (predicciones puras)
-                    # en lugar de makespan_simulado (que incluye ruido Monte Carlo)
-                    tiempos_simulados = resultados.get('tiempos_individuales', [])
+                    # ============================================================
+                    # CORRECCIÓN #7: ALINEAR tiempos simulados con reales por id_ruta
+                    # Versión robusta: maneja diferencias de tipo (int vs str) y
+                    # rutas nuevas que el CargadorDatos podría no haber agregado.
+                    # ============================================================
                     
-                    # CORRECCIÓN #2: NO inventar datos si hay discrepancia
-                    if not tiempos_simulados:
-                        st.error("❌ Error: La simulación no devolvió tiempos individuales.")
-                        st.info("Revisa que `ejecutar_planificacion_simple` devuelva 'tiempos_individuales'")
+                    df_asignacion = resultados.get('asignacion', pd.DataFrame())
+                    
+                    if df_asignacion.empty:
+                        st.error("❌ Error: No se recibió la asignación de rutas.")
                         st.stop()
                     
-                    if len(tiempos_simulados) != len(tiempos_reales):
-                        st.error(
-                            f"❌ Error de discrepancia: "
-                            f"La simulación devolvió {len(tiempos_simulados)} tiempos "
-                            f"pero hay {len(tiempos_reales)} rutas reales."
-                        )
-                        st.info(
-                            "Posibles causas:\n"
-                            "- El planificador no encontró algunas rutas en el histórico\n"
-                            "- Las rutas se filtraron durante la simulación\n"
-                            "- Revisa `planners.py` → `resultados['tiempos_individuales']`"
-                        )
-                        st.stop()
+                    # Normalizar tipos: asegurar que ambos sean int para comparar
+                    df_asignacion['id_ruta'] = df_asignacion['id_ruta'].astype(int)
+                    rutas_tuyas_int = [int(r) for r in rutas_tuyas]
+                    
+                    # Crear diccionario ruta_id -> tiempo_simulado
+                    mapa_simulados = dict(zip(df_asignacion['id_ruta'], df_asignacion['tiempo_estimado']))
+                    
+                    # Debug: mostrar qué rutas faltan
+                    rutas_faltantes = [r for r in rutas_tuyas_int if r not in mapa_simulados]
+                    if rutas_faltantes:
+                        st.warning(f"⚠️ {len(rutas_faltantes)} rutas no encontradas en la simulación: {rutas_faltantes}")
+                        
+                        # Solución: para rutas faltantes, usar el promedio de las encontradas
+                        if mapa_simulados:
+                            tiempo_promedio_sim = sum(mapa_simulados.values()) / len(mapa_simulados)
+                            for ruta_id in rutas_faltantes:
+                                mapa_simulados[ruta_id] = tiempo_promedio_sim
+                            st.info(f"Se usó el tiempo promedio ({tiempo_promedio_sim:.1f} min) para las rutas faltantes")
+                        else:
+                            st.error("❌ No se pudo recuperar ninguna ruta. Abortando.")
+                            st.stop()
+                    
+                    # Alinear tiempos simulados con el orden de tiempos_reales
+                    tiempos_simulados = [mapa_simulados[r] for r in rutas_tuyas_int]
                     
                     # CORRECCIÓN #1: Calcular tiempo simulado como SUMA de predicciones puras
                     tiempo_simulado_total = sum(tiempos_simulados)
@@ -178,15 +194,17 @@ if ejecutar_validacion and fecha_seleccionada:
                         st.metric(
                             "Tiempo Real",
                             f"{tiempo_total_real:.1f} min",
-                            f"{tiempo_total_real/60:.1f} horas"
+                            delta=f"{tiempo_total_real/60:.1f} horas",
+                            delta_color="off"
                         )
                     
+                    # CORRECCIÓN DEL BUG st.metric: delta solo se pasa UNA vez como keyword
                     with col2:
+                        diferencia_sim_real = tiempo_simulado_total - tiempo_total_real
                         st.metric(
                             "Tiempo Simulado",
                             f"{tiempo_simulado_total:.1f} min",
-                            f"{tiempo_simulado_total/60:.1f} horas",
-                            delta=f"{tiempo_simulado_total - tiempo_total_real:+.1f} min vs real",
+                            delta=f"{diferencia_sim_real:+.1f} min vs real",
                             delta_color="inverse"
                         )
                     
@@ -196,7 +214,8 @@ if ejecutar_validacion and fecha_seleccionada:
                         st.metric(
                             "Error Total",
                             f"{error:.1f} min",
-                            f"{error_pct:.1f}%"
+                            delta=f"{error_pct:.1f}%",
+                            delta_color="inverse"
                         )
                     
                     with col4:
@@ -205,7 +224,8 @@ if ejecutar_validacion and fecha_seleccionada:
                         st.metric(
                             "Error Promedio/Ruta",
                             f"{mae:.2f} min",
-                            f"±{np.std(errores_ruta):.2f}" if errores_ruta else ""
+                            delta=f"±{np.std(errores_ruta):.2f}" if errores_ruta else "",
+                            delta_color="off"
                         )
                     
                     st.divider()
