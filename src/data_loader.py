@@ -33,6 +33,10 @@ def cargar_datos_sqlite(ruta, tabla='despachos'):
 class CargadorDatos:
     """
     Carga el histórico completo de despachos y los modelos de la Fase 2.
+    
+    CORRECCIÓN (2026-08-11): Unificado el cálculo de features con el NB2.
+    Ahora se usa mean(log1p(x)) en lugar de log1p(mean(x)) para
+    cant_productos_log y valor_ruta_log, igual que SimuladorJornadaV2.
     """
     
     def __init__(self, data_path=None, models_path=None):
@@ -131,15 +135,44 @@ class CargadorDatos:
         mascara = self.df_historico['id_ruta_str'].isin(ids_buscados)
         df_encontradas = self.df_historico[mascara].copy()
         
-        if 'fecha' in df_encontradas.columns:
-            df_encontradas = df_encontradas.sort_values('fecha', ascending=False)
+        if len(df_encontradas) > 0:
+            # Calcular log1p primero, luego promediar (como NB2)
+            df_encontradas['cant_productos_log_calc'] = np.log1p(
+                df_encontradas['cant_productos'].clip(lower=0)
+            )
+            df_encontradas['valor_ruta_log_calc'] = np.log1p(
+                df_encontradas['valor_ruta'].clip(lower=0)
+            )
+            
+            # Agregar por ruta
+            df_agregado = df_encontradas.groupby('id_ruta_str').agg(
+                cant_productos_log=('cant_productos_log_calc', 'mean'),      # ← mean(log1p(x))
+                valor_ruta_log=('valor_ruta_log_calc', 'mean'),              # ← mean(log1p(x))
+                velocidad_historica_ruta=('velocidad_despacho', 'mean'),
+                frecuencia_ruta=('id_ruta_str', 'count'),
+                # Para columnas no numéricas, tomar el último valor
+                fecha=('fecha', 'last'),
+                hora_inicio_jornada=('hora_inicio_jornada', 'last'),
+                hora_fin_jornada=('hora_fin_jornada', 'last'),
+                dia_semana=('dia_semana', 'last'),
+                cant_productos=('cant_productos', 'mean'),  # promedio crudo para referencia
+                valor_ruta=('valor_ruta', 'mean'),          # promedio crudo para referencia
+            ).reset_index()
+            
+            # Calcular es_ruta_flash
+            df_agregado['es_ruta_flash'] = (
+                df_agregado['velocidad_historica_ruta'] > 5000
+            ).astype(int)
+            
+            # Renombrar para mantener compatibilidad
+            df_agregado['id_ruta'] = df_agregado['id_ruta_str']
+            df_pool = df_agregado.drop(columns=['id_ruta_str'])
+        else:
+            df_pool = pd.DataFrame()
         
-        df_pool = df_encontradas.groupby('id_ruta_str').first().reset_index()
-        df_pool['id_ruta'] = df_pool['id_ruta_str']
-        df_pool = df_pool.drop(columns=['id_ruta_str'])
         self.df_historico = self.df_historico.drop(columns=['id_ruta_str'], errors='ignore')
         
-        ids_encontrados = set(df_pool['id_ruta'].astype(str))
+        ids_encontrados = set(df_pool['id_ruta'].astype(str)) if len(df_pool) > 0 else set()
         rutas_faltantes = set(ids_buscados) - ids_encontrados
         
         if rutas_faltantes:
@@ -171,20 +204,39 @@ class CargadorDatos:
         return df_base
     
     def _crear_registros_estimados(self, lista_ids):
-        """Crea registros sintéticos para rutas sin histórico usando promedios"""
+        """
+        Crea registros sintéticos para rutas sin histórico usando promedios.
+        
+        """
         registros = []
         
-        prom_cant = self.df_historico['cant_productos'].mean() if 'cant_productos' in self.df_historico.columns else 8
-        prom_valor = self.df_historico['valor_ruta'].mean() if 'valor_ruta' in self.df_historico.columns else 250000
+        # Calcular medianas GLOBALES de los logaritmos (como NB2)
+        if 'cant_productos' in self.df_historico.columns:
+            cant_productos_log_mediana = np.log1p(
+                self.df_historico['cant_productos'].clip(lower=0)
+            ).median()
+        else:
+            cant_productos_log_mediana = np.log1p(500)
+        
+        if 'valor_ruta' in self.df_historico.columns:
+            valor_ruta_log_mediana = np.log1p(
+                self.df_historico['valor_ruta'].clip(lower=0)
+            ).median()
+        else:
+            valor_ruta_log_mediana = np.log1p(1000000)
+        
+        velocidad_mediana = self.df_historico['velocidad_despacho'].median() if 'velocidad_despacho' in self.df_historico.columns else 1500
         dia_actual = datetime.now().weekday()
         
         for ruta_id in lista_ids:
             registro = {
                 'id_ruta': ruta_id,
-                'cant_productos': prom_cant,
-                'valor_ruta': prom_valor,
+                'cant_productos_log': cant_productos_log_mediana,        # ← ya transformado
+                'valor_ruta_log': valor_ruta_log_mediana,                # ← ya transformado
+                'cant_productos': np.expm1(cant_productos_log_mediana),  # inversa para referencia
+                'valor_ruta': np.expm1(valor_ruta_log_mediana),          # inversa para referencia
                 'dia_semana': dia_actual,
-                'velocidad_despacho': 1500,
+                'velocidad_historica_ruta': velocidad_mediana,
                 'frecuencia_ruta': 1,
                 'es_ruta_flash': 0
             }
@@ -195,10 +247,7 @@ class CargadorDatos:
     def _reconstruir_features(self, df):
         """
         Prepara features con los nombres que espera el modelo.
-        El modelo espera: cant_productos_log, valor_ruta_log, dia_semana,
-        es_jueves, es_lunes_o_viernes, velocidad_historica_ruta, frecuencia_ruta, es_ruta_flash
         
-        Resetear índice al inicio para evitar problemas de alineación.
         """
         if self.feature_order is None:
             raise ValueError("feature_order no definido. Verificar carga de modelos.")
@@ -210,21 +259,27 @@ class CargadorDatos:
         df = df.reset_index(drop=True)
         n_filas = len(df)
         
-        # 1. Cantidad productos (conversión a log)
-        if 'cant_productos' in df.columns:
+        if 'cant_productos_log' in df.columns:
+            cant_productos_log = df['cant_productos_log'].astype(float)
+            print(f"      ✓ cant_productos_log: {cant_productos_log.iloc[0] if n_filas > 0 else 'N/A'} (usando valor precalculado)")
+        elif 'cant_productos' in df.columns:
             cant_productos_raw = df['cant_productos']
+            cant_productos_log = np.log1p(cant_productos_raw.clip(lower=0))
+            print(f"      ✓ cant_productos_log: {cant_productos_log.iloc[0] if n_filas > 0 else 'N/A'} (calculado de cant_productos)")
         else:
-            cant_productos_raw = pd.Series([500] * n_filas, index=df.index)
-        cant_productos_log = np.log1p(cant_productos_raw.clip(lower=0))
-        print(f"      ✓ cant_productos_log: {cant_productos_log.iloc[0] if n_filas > 0 else 'N/A'}")
+            cant_productos_log = pd.Series([np.log1p(500)] * n_filas, index=df.index)
+            print(f"      ✓ cant_productos_log: {cant_productos_log.iloc[0] if n_filas > 0 else 'N/A'} (default)")
         
-        # 2. Valor ruta (conversión a log)
-        if 'valor_ruta' in df.columns:
+        if 'valor_ruta_log' in df.columns:
+            valor_ruta_log = df['valor_ruta_log'].astype(float)
+            print(f"      ✓ valor_ruta_log: {valor_ruta_log.iloc[0] if n_filas > 0 else 'N/A'} (usando valor precalculado)")
+        elif 'valor_ruta' in df.columns:
             valor_ruta_raw = df['valor_ruta']
+            valor_ruta_log = np.log1p(valor_ruta_raw.clip(lower=0))
+            print(f"      ✓ valor_ruta_log: {valor_ruta_log.iloc[0] if n_filas > 0 else 'N/A'} (calculado de valor_ruta)")
         else:
-            valor_ruta_raw = pd.Series([1000000] * n_filas, index=df.index)
-        valor_ruta_log = np.log1p(valor_ruta_raw.clip(lower=0))
-        print(f"      ✓ valor_ruta_log: {valor_ruta_log.iloc[0] if n_filas > 0 else 'N/A'}")
+            valor_ruta_log = pd.Series([np.log1p(1000000)] * n_filas, index=df.index)
+            print(f"      ✓ valor_ruta_log: {valor_ruta_log.iloc[0] if n_filas > 0 else 'N/A'} (default)")
         
         # 3. Día de semana
         if 'dia_semana' in df.columns:
